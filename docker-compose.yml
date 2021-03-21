@@ -1,0 +1,93 @@
+---
+version: '2'
+
+services:
+  consul-server:
+    image: consul
+    container_name: consul-server
+    restart: always
+    volumes:
+      - ./consul/server.json:/consul/config/server.json:ro
+    ports:
+      - "8500:8500"
+      - "8600:8600/tcp"
+      - "8600:8600/udp"
+    command: "agent -bootstrap"
+
+  utility-box:
+    image: alpine
+    container_name: utility-box
+    depends_on: 
+      - consul-server
+    volumes:
+      - ./utility-box/application.yml:/application.yml:ro
+    command: sh -c "apk add --no-cache curl && curl --request PUT --data-binary @application.yml http://consul-server:8500/v1/kv/config/application/data"  
+
+  mongo:
+    image: mongo
+    restart: always
+    depends_on:
+      - utility-box
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin
+
+  mongo-express:
+    image: mongo-express
+    restart: always
+    depends_on:
+      - mongo
+    ports:
+      - 8081:8081
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
+      ME_CONFIG_MONGODB_ADMINPASSWORD: admin
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:6.0.0
+    hostname: zookeeper
+    container_name: zookeeper
+    depends_on: 
+      - utility-box
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  broker:
+    image: confluentinc/cp-kafka:6.0.0
+    hostname: broker
+    container_name: broker
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TOOLS_LOG4J_LOGLEVEL: ERROR
+
+  kafka-producer:
+    image: kafka-producer
+    restart: always
+    depends_on:
+      - consul-server
+      - broker 
+      - utility-box
+    ports:
+      - "8080:8080"
+
+  kafka-consumer:
+    image: kafka-consumer
+    restart: always
+    depends_on:
+      - consul-server
+      - broker
+      - utility-box
+      - mongo

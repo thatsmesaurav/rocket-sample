@@ -1,0 +1,11 @@
+spring:
+  config:
+    import: consul:consul-server:8500
+  cloud:
+    consul:
+      config:
+        enabled: true
+        format: yaml
+        prefixes: config
+  profiles:
+    active: dev

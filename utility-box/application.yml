@@ -1,0 +1,14 @@
+spring:
+  kafka:
+    bootstrap-servers: broker:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+  data:
+    mongodb:
+      host: mongo
+      port: 27017
+      database: admin
+      username: admin
+      password: admin
